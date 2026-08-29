@@ -9,10 +9,11 @@ func main() {
 	if argCount > 1 {
 		if os.Args[1] == "scan" {
 			fmt.Println("准备扫描文件")
-		}
-		else {
+		} else {
 			fmt.Println("请输入正确的参数！")
 		}
+
+		return
 	}
 
 	fmt.Println("用法: GoDrop scan")
