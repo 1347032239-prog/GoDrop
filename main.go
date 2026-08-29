@@ -12,12 +12,15 @@ func main() {
 		if os.Args[1] == "scan" {
 			if argCount == 2 {
 				fmt.Println("错误：必须使用 -dir 指定扫描目录")
+				return
 			} else {
+				
 				scanCmd := flag.NewFlagSet("scan", flag.ContinueOnError)
 				dirPtr := scanCmd.String("dir", ".", "目标路径")
 				err := scanCmd.Parse(os.Args[2:])
 				if err != nil {
-
+					fmt.Printf("参数解析失败!错误信息:%v\n", err)
+					return
 				}
 				cleanPath := filepath.Clean(*dirPtr)
 
