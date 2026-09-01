@@ -5,7 +5,6 @@ import "os"
 import "flag"
 import "path/filepath"
 import "errors"
-import "io/fs"
 
 func main() {
 
@@ -45,36 +44,20 @@ func main() {
 				fmt.Println("目标不是目录")
 				return
 			}
-			count := 0
-			var bytesSum int64 = 0
-			walkDirErr := filepath.WalkDir(cleanPath, func(path string, d fs.DirEntry, err error) error {
-				if err != nil {
-					return err
-				}
 
-				fileInfo, err := d.Info()
-				if err != nil {
-					return err
-				}
-				sz := fileInfo.Size()
+			result, err := scanDirectory(cleanPath)
 
-				relPath, err := filepath.Rel(cleanPath, path)
-				if err != nil {
-					return err
-				}
-				if fileInfo.Mode().IsRegular() {
-					fmt.Printf("%v %v bytes\n", relPath, sz)
-					count++
-					bytesSum += sz
-				}
-				return nil
-			})
-			if walkDirErr != nil {
-				fmt.Printf("扫描目录失败, 错误信息:%v\n", walkDirErr)
+			if err != nil {
+				fmt.Printf("错误信息为:%v\n", err)
 				return
 			}
-			fmt.Printf("文件数量: %v\n", count)
-			fmt.Printf("总大小: %v bytes\n", bytesSum)
+
+			length := len(result.Files)
+			for i := 0; i < length; i++ {
+				fmt.Printf("%v %v bytes\n", result.Files[i].Path, result.Files[i].Size)
+			}
+			fmt.Printf("文件数量: %v\n", length)
+			fmt.Printf("总大小: %v bytes\n", result.TotalSize)
 
 		} else {
 			fmt.Println("请输入正确的功能参数！")
