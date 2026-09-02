@@ -13,6 +13,7 @@ func main() {
 		if os.Args[1] == "scan" {
 			scanCmd := flag.NewFlagSet("scan", flag.ContinueOnError)
 			dirPtr := scanCmd.String("dir", "", "目标路径")
+			jsonPtr := scanCmd.String("out", "", "json保存路径")
 			err := scanCmd.Parse(os.Args[2:])
 			if err != nil {
 				fmt.Printf("参数解析失败!可能传入了非法flag, 错误信息:%v\n", err)
@@ -22,6 +23,7 @@ func main() {
 				fmt.Println("必须使用 -dir 指定扫描目录， 可能未传入路径")
 				return
 			}
+
 			if nArg := scanCmd.NArg(); nArg > 0 {
 				fmt.Print("错误: 不支持多余参数:")
 				for i := 0; i < nArg; i++ {
@@ -58,6 +60,16 @@ func main() {
 			}
 			fmt.Printf("文件数量: %v\n", length)
 			fmt.Printf("总大小: %v bytes\n", result.TotalSize)
+
+			if *jsonPtr != "" {
+				writeIndexErr := writeIndex(filepath.Clean(*jsonPtr), result)
+				if writeIndexErr != nil {
+					fmt.Printf("json写入失败 , 错误信息:%v\n", writeIndexErr)
+					return
+				}
+
+				fmt.Printf("索引已写入:%v\n", filepath.Clean(*jsonPtr))
+			}
 
 		} else {
 			fmt.Println("请输入正确的功能参数！")

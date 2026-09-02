@@ -6,18 +6,20 @@ import (
 )
 
 type FileEntry struct {
-	Path string
-	Size int64
+	Path string `json:"path"`
+	Size int64  `json:"size"`
 }
 
 type ScanResult struct {
-	Files     []FileEntry
-	TotalSize int64
+	Files     []FileEntry `json:"files"`
+	TotalSize int64       `json:"total_size"`
 }
 
 func scanDirectory(root string) (ScanResult, error) {
 
-	result := ScanResult{}
+	result := ScanResult{
+		Files: make([]FileEntry, 0),
+	}
 
 	walkDirErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
