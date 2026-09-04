@@ -9,14 +9,18 @@ import (
 
 func TestWriteIndex(t *testing.T) {
 	tests := []struct {
-		name           string
-		setupFiles     map[string]string
-		writeDir       string
-		expectedCount  int
-		expectedSize   int64
-		expectedError1 bool
-		expectedError2 bool
-		flag           int
+		name                   string
+		setupFiles             map[string]string
+		writeDir               string
+		expectedCount          int
+		expectedSize           int64
+		expectedError1         bool
+		expectedError2         bool
+		flag                   int
+		ifReadIndex            bool
+		ifReadIndexDirNotExist bool
+		expectedError3         bool
+		expectedError4         bool
 	}{
 		{
 			name: "previous",
@@ -56,6 +60,39 @@ func TestWriteIndex(t *testing.T) {
 			expectedError1: false,
 			expectedError2: true,
 			flag:           1,
+		},
+		{
+			name: "readIndex",
+			setupFiles: map[string]string{
+				"new1.txt": "12",
+				"new2.txt": "1234",
+			},
+			writeDir:               "/tmp/godrop-index.json",
+			expectedCount:          2,
+			expectedSize:           6,
+			expectedError1:         false,
+			expectedError2:         false,
+			flag:                   0,
+			ifReadIndex:            true,
+			ifReadIndexDirNotExist: false,
+			expectedError3:         false,
+		},
+		{
+			name: "readIndexNoExistingDir",
+			setupFiles: map[string]string{
+				"new1.txt": "12",
+				"new2.txt": "1234",
+			},
+			writeDir:               "/tmp/godrop-index.json",
+			expectedCount:          2,
+			expectedSize:           6,
+			expectedError1:         false,
+			expectedError2:         false,
+			flag:                   0,
+			ifReadIndex:            true,
+			ifReadIndexDirNotExist: true,
+			expectedError3:         false,
+			expectedError4:         true,
 		},
 	}
 
@@ -125,6 +162,27 @@ func TestWriteIndex(t *testing.T) {
 					t.Errorf("文件大小错误, 期望%v, 实际为%v", TT.expectedSize, decoded.TotalSize)
 				}
 
+				if TT.ifReadIndex {
+					readResult, err := readIndex(jsonDir)
+					if (err != nil) != TT.expectedError3 {
+						t.Fatalf("错误状态不匹配, 期望(err != nil)为%v, 实际为:%v", TT.expectedError3, err)
+					}
+					if len(readResult.Files) != TT.expectedCount {
+						t.Errorf("文件数量错误, 期望%v, 实际为%v", TT.expectedCount, len(readResult.Files))
+					}
+
+					if readResult.TotalSize != TT.expectedSize {
+						t.Errorf("文件大小错误, 期望%v, 实际为%v", TT.expectedSize, readResult.TotalSize)
+					}
+
+				}
+
+				if TT.ifReadIndexDirNotExist {
+					_, err := readIndex(filepath.Join(tmpDir, "missingReadIndexDir"))
+					if (err != nil) != TT.expectedError4 {
+						t.Fatalf("错误状态不匹配, 期望(err != nil)为%v, 实际为:%v", TT.expectedError4, err)
+					}
+				}
 			}
 
 		})

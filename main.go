@@ -1,10 +1,12 @@
 package main
 
-import "fmt"
-import "os"
-import "flag"
-import "path/filepath"
-import "errors"
+import (
+	"errors"
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+)
 
 func main() {
 
@@ -20,7 +22,7 @@ func main() {
 				return
 			}
 			if *dirPtr == "" {
-				fmt.Println("必须使用 -dir 指定扫描目录， 可能未传入路径")
+				fmt.Println("必须使用 -dir 指定扫描目录，可能未传入路径")
 				return
 			}
 
@@ -54,12 +56,7 @@ func main() {
 				return
 			}
 
-			length := len(result.Files)
-			for i := 0; i < length; i++ {
-				fmt.Printf("%v %v bytes\n", result.Files[i].Path, result.Files[i].Size)
-			}
-			fmt.Printf("文件数量: %v\n", length)
-			fmt.Printf("总大小: %v bytes\n", result.TotalSize)
+			printScanResult(result)
 
 			if *jsonPtr != "" {
 				writeIndexErr := writeIndex(filepath.Clean(*jsonPtr), result)
@@ -71,6 +68,37 @@ func main() {
 				fmt.Printf("索引已写入:%v\n", filepath.Clean(*jsonPtr))
 			}
 
+		} else if os.Args[1] == "show" {
+			showCmd := flag.NewFlagSet("show", flag.ContinueOnError)
+			indexPtr := showCmd.String("index", "", "要展示的json保存路径")
+			err := showCmd.Parse(os.Args[2:])
+			if err != nil {
+				fmt.Printf("参数解析失败!可能传入了非法flag, 错误信息:%v\n", err)
+				return
+			}
+
+			if *indexPtr == "" {
+				fmt.Println("必须使用 -index 指定展示路径，可能未传入路径")
+				return
+			}
+
+			if nArg := showCmd.NArg(); nArg > 0 {
+				fmt.Print("错误: 不支持多余参数:")
+				for i := 0; i < nArg; i++ {
+					fmt.Printf("%v ", showCmd.Arg(i))
+				}
+				return
+			}
+
+			cleanPath := filepath.Clean(*indexPtr)
+			result, err := readIndex(cleanPath)
+			if err != nil {
+				fmt.Printf("读json反序列化失败, 错误信息:%v", err)
+				return
+			}
+
+			printScanResult(result)
+
 		} else {
 			fmt.Println("请输入正确的功能参数！")
 		}
@@ -78,6 +106,6 @@ func main() {
 		return
 	}
 
-	fmt.Println("用法: GoDrop scan")
+	fmt.Println("支持用法:scan , show")
 
 }
