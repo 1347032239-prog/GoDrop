@@ -4,6 +4,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 )
@@ -99,6 +101,55 @@ func main() {
 
 			printScanResult(result)
 
+		} else if os.Args[1] == "serve" {
+
+			serveCmd := flag.NewFlagSet("serve", flag.ContinueOnError)
+			indexPtr := serveCmd.String("index", "", "要提供的json路径")
+			addrPtr := serveCmd.String("addr", "127.0.0.1:8080", "服务端socket")
+			err := serveCmd.Parse(os.Args[2:])
+
+			if err != nil {
+
+				fmt.Printf("参数解析失败, 错误信息:%v\n", err)
+
+				return
+
+			}
+
+			if *indexPtr == "" {
+
+				fmt.Println("未获取到路径")
+
+				return
+
+			}
+
+			if nArg := serveCmd.NArg(); nArg > 0 {
+				fmt.Print("错误: 不支持多余参数:")
+				for i := 0; i < nArg; i++ {
+					fmt.Printf("%v ", serveCmd.Arg(i))
+				}
+				return
+			}
+
+			result, err := readIndex(*indexPtr)
+
+			if err != nil {
+
+				fmt.Printf("读取json失败, 错误信息:%v\n", err)
+
+				return
+
+			}
+
+			mux := newHTTPHandler(result)
+
+			fmt.Printf("服务启动于 http://%v\n", *addrPtr)
+
+			if err := http.ListenAndServe(*addrPtr, mux); err != nil {
+				log.Fatalf("Server failed to start: %v", err)
+			}
+
 		} else {
 			fmt.Println("请输入正确的功能参数！")
 		}
@@ -106,6 +157,6 @@ func main() {
 		return
 	}
 
-	fmt.Println("支持用法:scan , show")
+	fmt.Println("支持用法:scan , show, serve")
 
 }
