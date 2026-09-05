@@ -150,6 +150,48 @@ func main() {
 				log.Fatalf("Server failed to start: %v", err)
 			}
 
+		} else if os.Args[1] == "fetch" {
+
+			fetchCmd := flag.NewFlagSet("fetch", flag.ContinueOnError)
+			urlPtr := fetchCmd.String("url", "", "url")
+			err := fetchCmd.Parse(os.Args[2:])
+
+			if err != nil {
+
+				fmt.Printf("参数解析失败, 错误信息:%v\n", err)
+
+				return
+
+			}
+
+			if *urlPtr == "" {
+
+				fmt.Println("url获取失败")
+
+				return
+
+			}
+
+			if nArg := fetchCmd.NArg(); nArg > 0 {
+				fmt.Print("错误: 不支持多余参数:")
+				for i := 0; i < nArg; i++ {
+					fmt.Printf("%v ", fetchCmd.Arg(i))
+				}
+				return
+			}
+
+			result, err := fetchIndex(*urlPtr)
+
+			if err != nil {
+
+				fmt.Printf("错误信息:%v\n", err)
+
+				return
+
+			}
+
+			printScanResult(result)
+
 		} else {
 			fmt.Println("请输入正确的功能参数！")
 		}
@@ -157,6 +199,6 @@ func main() {
 		return
 	}
 
-	fmt.Println("支持用法:scan , show, serve")
+	fmt.Println("支持用法:scan , show, serve, fetch")
 
 }
