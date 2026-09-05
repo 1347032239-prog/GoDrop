@@ -4,7 +4,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -106,6 +105,8 @@ func runServe(args []string) {
 	serveCmd := flag.NewFlagSet("serve", flag.ContinueOnError)
 	indexPtr := serveCmd.String("index", "", "要提供的json路径")
 	addrPtr := serveCmd.String("addr", "127.0.0.1:8080", "服务端socket")
+	dirPtr := serveCmd.String("dir", "", "可下载文件路径 ")
+
 	err := serveCmd.Parse(args)
 
 	if err != nil {
@@ -119,6 +120,14 @@ func runServe(args []string) {
 	if *indexPtr == "" {
 
 		fmt.Println("未获取到路径")
+
+		return
+
+	}
+
+	if *dirPtr == "" {
+
+		fmt.Println("未提供可下载文件路径")
 
 		return
 
@@ -142,12 +151,26 @@ func runServe(args []string) {
 
 	}
 
-	mux := newHTTPHandler(result)
+	root, err := os.OpenRoot(*dirPtr)
+
+	if err != nil {
+
+		fmt.Printf("打开文件目录失败, 错误信息:%v\n", err)
+
+		return
+
+	}
+
+	defer root.Close()
+
+	mux := newHTTPHandler(result, root)
 
 	fmt.Printf("服务启动于 http://%v\n", *addrPtr)
 
 	if err := http.ListenAndServe(*addrPtr, mux); err != nil {
-		log.Fatalf("Server failed to start: %v", err)
+
+		fmt.Printf("Server failed to start: %v", err)
+
 	}
 
 }
