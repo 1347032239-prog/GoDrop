@@ -219,11 +219,73 @@ func runFetch(args []string) {
 
 }
 
+func runDownload(args []string) {
+
+	downloadCmd := flag.NewFlagSet("download", flag.ContinueOnError)
+	urlPtr := downloadCmd.String("url", "", "url")
+	pathPtr := downloadCmd.String("path", "", "服务端共享目录中的相对地址")
+	outPtr := downloadCmd.String("out", "", "客户端保存地址")
+	err := downloadCmd.Parse(args)
+
+	if err != nil {
+
+		fmt.Printf("参数解析失败, 错误信息:%v\n", err)
+
+		return
+
+	}
+
+	if *urlPtr == "" {
+
+		fmt.Println("url获取失败")
+
+		return
+
+	}
+
+	if *pathPtr == "" {
+
+		fmt.Println("未填目标资源在共享目录下的相对地址")
+
+		return
+
+	}
+
+	if *outPtr == "" {
+
+		fmt.Println("out字段必填本地保存地址")
+
+		return
+
+	}
+
+	if nArg := downloadCmd.NArg(); nArg > 0 {
+		fmt.Print("错误: 不支持多余参数:")
+		for i := 0; i < nArg; i++ {
+			fmt.Printf("%v ", downloadCmd.Arg(i))
+		}
+		return
+	}
+
+	n, err := downloadFile(*urlPtr, *pathPtr, *outPtr)
+
+	if err != nil {
+
+		fmt.Printf("文件下载失败, 错误信息:%v\n", err)
+
+		return
+
+	}
+
+	fmt.Printf("下载文件成功, 文件大小:%v bytes\n", n)
+
+}
+
 func main() {
 
 	if len(os.Args) <= 1 {
 
-		fmt.Println("支持用法:scan , show, serve, fetch")
+		fmt.Println("支持用法:scan , show, serve, fetch, download")
 
 		return
 	}
@@ -239,6 +301,8 @@ func main() {
 		runServe(args)
 	case "fetch":
 		runFetch(args)
+	case "download":
+		runDownload(args)
 	default:
 		fmt.Println("请输入正确的功能参数！")
 	}
