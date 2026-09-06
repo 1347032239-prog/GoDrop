@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -55,7 +56,7 @@ func fetchIndex(rawURL string) (ScanResult, error) {
 
 }
 
-func downloadFile(rawURL, remotePath, outputPath string) (int64, error) {
+func downloadFile(ctx context.Context, rawURL, remotePath, outputPath string) (int64, error) {
 
 	var n int64 = 0
 
@@ -77,7 +78,7 @@ func downloadFile(rawURL, remotePath, outputPath string) (int64, error) {
 
 	finalURL := u.String()
 
-	req, err := http.NewRequest("GET", finalURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, finalURL, nil)
 
 	if err != nil {
 
@@ -85,9 +86,7 @@ func downloadFile(rawURL, remotePath, outputPath string) (int64, error) {
 
 	}
 
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
+	client := &http.Client{}
 
 	resp, err := client.Do(req)
 
@@ -129,6 +128,12 @@ func downloadFile(rawURL, remotePath, outputPath string) (int64, error) {
 		if err != nil {
 
 			return n, fmt.Errorf("传输失败, 错误信息为:%w", err)
+
+		}
+
+		if ctxErr := ctx.Err(); ctxErr != nil {
+
+			return n, fmt.Errorf("下载被取消: %w", ctxErr)
 
 		}
 

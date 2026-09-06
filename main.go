@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
+	"time"
 )
 
 func runScan(args []string) {
@@ -225,6 +229,7 @@ func runDownload(args []string) {
 	urlPtr := downloadCmd.String("url", "", "url")
 	pathPtr := downloadCmd.String("path", "", "服务端共享目录中的相对地址")
 	outPtr := downloadCmd.String("out", "", "客户端保存地址")
+	timeoutPtr := downloadCmd.Duration("timeout", 30*time.Second, "下载超时时间")
 	err := downloadCmd.Parse(args)
 
 	if err != nil {
@@ -259,6 +264,14 @@ func runDownload(args []string) {
 
 	}
 
+	if *timeoutPtr <= 0 {
+
+		fmt.Println("超时时间小于或等于0, 错误!")
+
+		return
+
+	}
+
 	if nArg := downloadCmd.NArg(); nArg > 0 {
 		fmt.Print("错误: 不支持多余参数:")
 		for i := 0; i < nArg; i++ {
@@ -267,7 +280,15 @@ func runDownload(args []string) {
 		return
 	}
 
-	n, err := downloadFile(*urlPtr, *pathPtr, *outPtr)
+	signalCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+
+	defer stop()
+
+	ctx, cancel := context.WithTimeout(signalCtx, *timeoutPtr)
+
+	defer cancel()
+
+	n, err := downloadFile(ctx, *urlPtr, *pathPtr, *outPtr)
 
 	if err != nil {
 
