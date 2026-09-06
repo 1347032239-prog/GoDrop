@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -58,6 +59,8 @@ func downloadFile(rawURL, remotePath, outputPath string) (int64, error) {
 
 	var n int64 = 0
 
+	stage := 1
+
 	u, err := url.Parse(rawURL)
 
 	if err != nil {
@@ -78,7 +81,7 @@ func downloadFile(rawURL, remotePath, outputPath string) (int64, error) {
 
 	if err != nil {
 
-		return n, fmt.Errorf("请求创建失败, 错误信息为:%w\n", err)
+		return n, fmt.Errorf("请求创建失败, 错误信息为:%w", err)
 
 	}
 
@@ -90,7 +93,7 @@ func downloadFile(rawURL, remotePath, outputPath string) (int64, error) {
 
 	if err != nil {
 
-		return n, fmt.Errorf("Do失败, 错误信息为:%w\n", err)
+		return n, fmt.Errorf("Do失败, 错误信息为:%w", err)
 
 	}
 
@@ -98,23 +101,62 @@ func downloadFile(rawURL, remotePath, outputPath string) (int64, error) {
 
 	if resp.StatusCode == http.StatusOK {
 
-		file, err := os.Create(outputPath)
+		tmpfile, err := os.CreateTemp(filepath.Dir(outputPath), "."+filepath.Base(outputPath)+".*.part")
 
 		if err != nil {
 
-			return n, fmt.Errorf("文件创建失败, 错误信息为:%w\n", err)
+			return n, fmt.Errorf("临时文件创建失败, 错误信息为:%w", err)
 
 		}
 
-		defer file.Close()
+		tmpPath := tmpfile.Name()
 
-		n, err = io.Copy(file, resp.Body)
+		defer func() {
+
+			switch stage {
+			case 1:
+				tmpfile.Close()
+
+				os.Remove(tmpPath)
+			case 2:
+				os.Remove(tmpPath)
+			}
+
+		}()
+
+		n, err = io.Copy(tmpfile, resp.Body)
 
 		if err != nil {
 
-			return n, fmt.Errorf("传输失败, 错误信息为:%w\n", err)
+			return n, fmt.Errorf("传输失败, 错误信息为:%w", err)
 
 		}
+
+		syncErr := tmpfile.Sync()
+
+		if syncErr != nil {
+
+			return n, fmt.Errorf("Sync failed, syncErr:%w", syncErr)
+
+		}
+
+		stage = 2
+
+		if closeErr := tmpfile.Close(); closeErr != nil {
+
+			return n, fmt.Errorf("closing failed, closeErr:%w", closeErr)
+
+		}
+
+		renameErr := os.Rename(tmpPath, outputPath)
+
+		if renameErr != nil {
+
+			return n, fmt.Errorf("rename failed, renameErr:%w", renameErr)
+
+		}
+
+		stage = 3
 
 		return n, nil
 
