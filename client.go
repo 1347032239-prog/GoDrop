@@ -53,7 +53,49 @@ func fetchIndex(rawURL string) (ScanResult, error) {
 
 	} else {
 
-		return result, fmt.Errorf("bad status %v", resp.Status)
+		return result, fmt.Errorf("bad status:%v", resp.Status)
+
+	}
+
+}
+
+func fetchIndexWithContext(ctx context.Context, rawURL string) (ScanResult, error) {
+
+	var result ScanResult
+
+	client := &http.Client{}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
+
+	if err != nil {
+
+		return result, fmt.Errorf("请求报文生成失败, 错误信息为%w", err)
+
+	}
+
+	resp, err := client.Do(req)
+
+	if err != nil {
+
+		return result, fmt.Errorf("Do失败, 错误信息为%w", err)
+
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+
+		if Derr := json.NewDecoder(resp.Body).Decode(&result); Derr != nil {
+
+			return result, Derr
+
+		}
+
+		return result, nil
+
+	} else {
+
+		return result, fmt.Errorf("bad status:%v", resp.Status)
 
 	}
 

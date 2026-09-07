@@ -302,11 +302,112 @@ func runDownload(args []string) {
 
 }
 
+func runSync(args []string) {
+	syncCmd := flag.NewFlagSet("sync", flag.ContinueOnError)
+	indexURLPtr := syncCmd.String("index-url", "", "indexURL")
+	downloadPtr := syncCmd.String("download-url", "", "downloadURL")
+	outPtr := syncCmd.String("out", "", "客户端下载的文件保存在哪")
+	workerPtr := syncCmd.Int("workers", 4, "开启几个下载协程")
+	timeoutPtr := syncCmd.Duration("timeout", 2*time.Minute, "timeout")
+	err := syncCmd.Parse(args)
+
+	if err != nil {
+
+		fmt.Println("Parse failed")
+
+		return
+
+	}
+
+	if *indexURLPtr == "" {
+
+		fmt.Println("未成功获取索引URL")
+
+		return
+
+	}
+
+	if *downloadPtr == "" {
+
+		fmt.Println("未成功获取下载URL")
+
+		return
+
+	}
+
+	if *outPtr == "" {
+
+		fmt.Println("未成功获取客户端本地保存路径")
+
+		return
+
+	}
+
+	if *workerPtr < 1 || *workerPtr > 32 {
+
+		fmt.Println("允许协程数范围:1-32")
+
+		return
+
+	}
+
+	if *timeoutPtr <= 0 {
+
+		fmt.Println("timeout必须大于零!")
+
+		return
+
+	}
+
+	if nArg := syncCmd.NArg(); nArg > 0 {
+
+		fmt.Print("错误: 不支持多余参数:")
+		for i := 0; i < nArg; i++ {
+			fmt.Printf("%v ", syncCmd.Arg(i))
+		}
+		return
+
+	}
+
+	parent := context.Background()
+
+	ctxTimeout, stop := context.WithTimeout(parent, *timeoutPtr)
+
+	defer stop()
+
+	ctx, cancel := signal.NotifyContext(ctxTimeout, syscall.SIGTERM, os.Interrupt) //os.Interrupt是跨平台中断信号
+
+	defer cancel()
+
+	result, err := fetchIndexWithContext(ctx, *indexURLPtr)
+
+	if err != nil {
+
+		fmt.Println("索引获取失败")
+
+		return
+
+	}
+
+	summary, err := syncFiles(ctx, result, *downloadPtr, *outPtr, *workerPtr)
+
+	if err != nil {
+
+		fmt.Printf("同步失败, 错误信息:%v\n", err)
+
+		return
+
+	}
+
+	fmt.Printf("同步完成: %v files, %v bytes\n", summary.Files, summary.Bytes)
+
+}
+
 func main() {
 
 	if len(os.Args) <= 1 {
 
-		fmt.Println("支持用法:scan , show, serve, fetch, download")
+		fmt.Println("支持用法:scan , show, serve, fetch, download, sync")
 
 		return
 	}
@@ -324,6 +425,8 @@ func main() {
 		runFetch(args)
 	case "download":
 		runDownload(args)
+	case "sync":
+		runSync(args)
 	default:
 		fmt.Println("请输入正确的功能参数！")
 	}
