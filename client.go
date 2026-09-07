@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -100,6 +103,24 @@ func downloadFile(ctx context.Context, rawURL, remotePath, outputPath string) (i
 
 	if resp.StatusCode == http.StatusOK {
 
+		sha256Value := resp.Header.Get("X-GoDrop-SHA256")
+
+		digest, err := hex.DecodeString(sha256Value)
+
+		if err != nil {
+
+			return n, fmt.Errorf("解析校验码失败! 错误信息:%w", err)
+
+		}
+
+		if len(digest) != sha256.Size {
+
+			return n, fmt.Errorf("校验码有误")
+
+		}
+
+		hasher := sha256.New()
+
 		tmpfile, err := os.CreateTemp(filepath.Dir(outputPath), "."+filepath.Base(outputPath)+".*.part")
 
 		if err != nil {
@@ -107,6 +128,8 @@ func downloadFile(ctx context.Context, rawURL, remotePath, outputPath string) (i
 			return n, fmt.Errorf("临时文件创建失败, 错误信息为:%w", err)
 
 		}
+
+		multiWriter := io.MultiWriter(hasher, tmpfile)
 
 		tmpPath := tmpfile.Name()
 
@@ -123,7 +146,7 @@ func downloadFile(ctx context.Context, rawURL, remotePath, outputPath string) (i
 
 		}()
 
-		n, err = io.Copy(tmpfile, resp.Body)
+		n, err = io.Copy(multiWriter, resp.Body)
 
 		if err != nil {
 
@@ -134,6 +157,14 @@ func downloadFile(ctx context.Context, rawURL, remotePath, outputPath string) (i
 		if ctxErr := ctx.Err(); ctxErr != nil {
 
 			return n, fmt.Errorf("下载被取消: %w", ctxErr)
+
+		}
+
+		cpDigest := hasher.Sum(nil)
+
+		if !bytes.Equal(digest, cpDigest) {
+
+			return n, fmt.Errorf("校验码不相等")
 
 		}
 

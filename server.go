@@ -11,15 +11,15 @@ import (
 
 func newHTTPHandler(result ScanResult, root *os.Root) http.Handler {
 
-	allowedPaths := make(map[string]struct{}, len(result.Files))
+	mux := http.NewServeMux()
+
+	allowedPaths := make(map[string]FileEntry, len(result.Files))
 
 	for _, file := range result.Files {
 
-		allowedPaths[file.Path] = struct{}{}
+		allowedPaths[file.Path] = file
 
 	}
-
-	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /files", func(w http.ResponseWriter, r *http.Request) {
 
@@ -87,6 +87,7 @@ func newHTTPHandler(result ScanResult, root *os.Root) http.Handler {
 
 		}
 
+		w.Header().Set("X-GoDrop-SHA256", allowedPaths[path].SHA256)
 		w.Header().Set("Content-Type", "application/pdf")
 
 		_, err = io.Copy(w, file)
