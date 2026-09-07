@@ -49,7 +49,7 @@ func readIndex(path string) (ScanResult, error) {
 func printScanResult(result ScanResult) {
 	length := len(result.Files)
 	for i := 0; i < length; i++ {
-		fmt.Printf("%v %v bytes\n", result.Files[i].Path, result.Files[i].Size)
+		fmt.Printf("%v %v bytes sha256:%v\n", result.Files[i].Path, result.Files[i].Size, result.Files[i].SHA256)
 	}
 	fmt.Printf("文件数量: %v\n", length)
 	fmt.Printf("总大小: %v bytes\n", result.TotalSize)
