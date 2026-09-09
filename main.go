@@ -171,9 +171,61 @@ func runServe(args []string) {
 
 	fmt.Printf("服务启动于 http://%v\n", *addrPtr)
 
-	if err := http.ListenAndServe(*addrPtr, mux); err != nil {
+	signalCtx, stopSignal := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
 
-		fmt.Printf("Server failed to start: %v", err)
+	defer stopSignal()
+
+	server := &http.Server{
+		Addr:              *addrPtr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+
+	serverErrCh := make(chan error, 1)
+
+	go func() {
+
+		serverErrCh <- server.ListenAndServe()
+
+	}()
+
+	select {
+
+	case serveErr := <-serverErrCh:
+
+		fmt.Printf("错误信息:%v\n", serveErr)
+
+		return
+
+	case <-signalCtx.Done():
+
+		fmt.Println("收到退出信号, 正在关闭服务...")
+		shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancelShutdown()
+
+		err := server.Shutdown(shutdownCtx)
+
+		if err != nil {
+
+			server.Close()
+
+			serveErr := <-serverErrCh
+
+			fmt.Printf("错误信息:%v, %v\n", err, serveErr)
+
+			return
+
+		}
+
+		<-serverErrCh
+
+		fmt.Println("服务已安全关闭")
 
 	}
 
