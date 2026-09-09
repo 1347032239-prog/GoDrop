@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -169,7 +170,9 @@ func runServe(args []string) {
 
 	mux := newHTTPHandler(result, root)
 
-	fmt.Printf("服务启动于 http://%v\n", *addrPtr)
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
+
+	slog.Info("服务正在启动", "addr", *addrPtr)
 
 	signalCtx, stopSignal := signal.NotifyContext(
 		context.Background(),
@@ -199,33 +202,49 @@ func runServe(args []string) {
 
 	case serveErr := <-serverErrCh:
 
-		fmt.Printf("错误信息:%v\n", serveErr)
+		slog.Error("监听服务异常退出", "addr", *addrPtr, "error", serveErr)
 
 		return
 
 	case <-signalCtx.Done():
 
-		fmt.Println("收到退出信号, 正在关闭服务...")
+		slog.Info("收到退出信号", "addr", *addrPtr)
 		shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancelShutdown()
 
-		err := server.Shutdown(shutdownCtx)
+		shutdownErr := server.Shutdown(shutdownCtx)
 
-		if err != nil {
+		if shutdownErr != nil {
 
-			server.Close()
+			slog.Error("优雅关闭失败", "addr", *addrPtr, "error", shutdownErr)
 
-			serveErr := <-serverErrCh
+			closeErr := server.Close()
 
-			fmt.Printf("错误信息:%v, %v\n", err, serveErr)
+			if closeErr != nil {
+
+				slog.Error("强制关闭失败", "error", closeErr)
+
+			}
+
+		}
+
+		serveErr := <-serverErrCh
+
+		if !errors.Is(serveErr, http.ErrServerClosed) {
+
+			slog.Error("收到信号后监听服务出现异常", "addr", *addrPtr, "error", serveErr)
 
 			return
 
 		}
 
-		<-serverErrCh
+		if shutdownErr != nil {
 
-		fmt.Println("服务已安全关闭")
+			return
+
+		}
+
+		slog.Info("服务安全关闭", "addr", *addrPtr)
 
 	}
 

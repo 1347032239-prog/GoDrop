@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -93,7 +93,7 @@ func newHTTPHandler(result ScanResult, root *os.Root) http.Handler {
 		_, err = io.Copy(w, file)
 		if err != nil {
 
-			log.Printf("Streaming failed: %v", err)
+			slog.Error("文件流式传输失败", "path", path, "error", err)
 
 		}
 
