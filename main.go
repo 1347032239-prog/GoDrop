@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -168,7 +169,11 @@ func runServe(args []string) {
 
 	defer root.Close()
 
-	mux := newHTTPHandler(result, root)
+	var ready atomic.Bool
+
+	fileHandler := newHTTPHandler(result, root)
+
+	mux := newProbeHandler(fileHandler, &ready)
 
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
 
@@ -190,6 +195,8 @@ func runServe(args []string) {
 		IdleTimeout:       60 * time.Second,
 	}
 
+	ready.Store(true)
+
 	serverErrCh := make(chan error, 1)
 
 	go func() {
@@ -201,6 +208,7 @@ func runServe(args []string) {
 	select {
 
 	case serveErr := <-serverErrCh:
+		ready.Store(false)
 
 		slog.Error("监听服务异常退出", "addr", *addrPtr, "error", serveErr)
 
@@ -212,6 +220,7 @@ func runServe(args []string) {
 		shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancelShutdown()
 
+		ready.Store(false)
 		shutdownErr := server.Shutdown(shutdownCtx)
 
 		if shutdownErr != nil {
