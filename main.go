@@ -170,10 +170,13 @@ func runServe(args []string) {
 	defer root.Close()
 
 	var ready atomic.Bool
+	var metrics serverMetrics
 
 	fileHandler := newHTTPHandler(result, root)
 
-	mux := newProbeHandler(fileHandler, &ready)
+	probeHandler := newProbeHandler(fileHandler, &ready)
+
+	mux := newMetricsHandler(probeHandler, &ready, result, &metrics)
 
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
 
