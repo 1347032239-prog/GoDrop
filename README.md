@@ -16,6 +16,7 @@ GoDrop 是一个只使用 Go 标准库实现的文件索引与传输工具。服
 - 支持超时、信号取消、HTTP 服务超时和优雅关闭
 - 提供 JSON 结构化日志、健康探针、就绪探针和轻量指标
 - 支持 Docker 镜像和 GitHub Actions 自动检查
+- 提供可复现的本地 kind/Kubernetes 部署、资源约束和滚动更新配置
 
 ## 工作流程
 
@@ -39,6 +40,7 @@ HTTP 服务
 
 - Go 1.27 或兼容版本
 - Docker（仅在容器运行方式中需要）
+- kind 和 kubectl（仅在本地 Kubernetes 运行方式中需要）
 
 ## 构建
 
@@ -264,6 +266,158 @@ sudo docker run --rm \
 http://127.0.0.1:18080
 ```
 
+## Kubernetes（本地 kind）
+
+这一部署用于学习 Kubernetes 的 Deployment、Service、ConfigMap、PV/PVC、探针、资源约束、滚动更新和自愈。它是单节点开发环境，不是生产级高可用方案。
+
+以下命令在运行 Docker 的 Linux 主机上执行。仓库中的 `deploy/kind.yaml` 会把主机的 `/tmp/godrop-demo` 只读映射到 kind 节点，再由静态 Local PersistentVolume 提供给 GoDrop Pod。
+
+### 1. 准备数据与镜像
+
+```bash
+cd ~/Go/GoDrop
+
+mkdir -p /tmp/godrop-demo/share/nested
+printf 'hello' > /tmp/godrop-demo/share/a.txt
+printf 'world' > /tmp/godrop-demo/share/nested/b.txt
+
+go run . scan \
+  -dir /tmp/godrop-demo/share \
+  -out /tmp/godrop-demo/index.json
+
+sudo docker build -t godrop:local .
+```
+
+扫描的关键预期输出：
+
+```text
+文件数量: 2
+总大小: 10 bytes
+索引已写入:/tmp/godrop-demo/index.json
+```
+
+### 2. 创建集群并部署
+
+如果名为 `godrop` 的 kind 集群尚不存在：
+
+```bash
+kind create cluster --config deploy/kind.yaml --wait 120s
+```
+
+将本地镜像导入集群并应用清单：
+
+```bash
+kind load docker-image godrop:local --name godrop
+kubectl apply -f deploy/kubernetes/
+kubectl rollout status deployment/godrop --timeout=120s
+kubectl wait --for=condition=Ready pod -l app=godrop --timeout=120s
+```
+
+关键预期输出包含：
+
+```text
+deployment "godrop" successfully rolled out
+pod/godrop-... condition met
+```
+
+检查 Kubernetes 对象：
+
+```bash
+kubectl get pv,pvc
+kubectl get deployment,pod,service -l app=godrop
+```
+
+预期状态：PV 和 PVC 为 `Bound`；Deployment 为 `1/1`；Pod 为 `1/1 Running`；Service 类型为 `ClusterIP`。
+
+### 3. 访问服务
+
+终端 1 保持端口转发：
+
+```bash
+kubectl port-forward service/godrop 18080:8080
+```
+
+预期输出：
+
+```text
+Forwarding from 127.0.0.1:18080 -> 8080
+```
+
+终端 2 检查探针和索引：
+
+```bash
+curl -fsS http://127.0.0.1:18080/healthz
+curl -fsS http://127.0.0.1:18080/readyz
+go run . fetch -url http://127.0.0.1:18080/files
+```
+
+关键预期输出：
+
+```text
+ok
+ready
+文件数量: 2
+总大小: 10 bytes
+```
+
+### 4. 观察滚动更新与自愈
+
+ConfigMap 通过环境变量注入，修改后需要重启 Pod 才会生效：
+
+```bash
+kubectl rollout restart deployment/godrop
+kubectl rollout status deployment/godrop --timeout=120s
+```
+
+预期输出包含：
+
+```text
+deployment "godrop" successfully rolled out
+```
+
+删除 Pod 后，Deployment 会自动创建替代 Pod：
+
+```bash
+kubectl delete pod -l app=godrop
+kubectl wait --for=condition=Ready pod -l app=godrop --timeout=120s
+kubectl get pods -l app=godrop
+```
+
+预期最终状态为一个新的 `1/1 Running` Pod。
+
+### 5. 配置、安全和存储边界
+
+- `ConfigMap` 保存索引路径、共享目录和监听地址；当前没有密码、令牌或证书，因此没有伪造 `Secret`。将来出现敏感配置时才应增加 Secret，并注意 base64 编码本身不是加密。
+- Pod 以非 root 用户运行，关闭 ServiceAccount 令牌自动挂载、权限提升和 Linux capabilities，并使用只读根文件系统。
+- startup、readiness 和 liveness probe 分别负责启动保护、流量准入和故障重启。
+- CPU/内存 requests 帮助调度，limits 限制单个容器可使用的资源。
+- 当前 Local PV 固定在 `godrop-control-plane` 节点，底层数据仍来自主机 `/tmp/godrop-demo`。它没有跨节点复制、故障迁移或高可用能力；真实多节点集群应改用 CSI 动态存储、网络共享存储或对象存储。
+- GoDrop 在启动时读取一次索引。共享文件或索引改变后，应重新生成索引并重启 Deployment。
+
+### 6. 清理 Kubernetes 环境
+
+只删除 GoDrop 对象，保留集群：
+
+```bash
+kubectl delete -f deploy/kubernetes/
+```
+
+预期输出会逐项显示 `deleted`。
+
+连同专用 kind 集群一起删除：
+
+```bash
+kind delete cluster --name godrop
+```
+
+预期输出：
+
+```text
+Deleted nodes: ["godrop-control-plane"]
+```
+
+这些清理命令不会删除主机上的 `/tmp/godrop-demo` 或本地 `godrop:local` 镜像。
+
 ## 网络地址
 
 - `127.0.0.1` 只允许当前机器访问。
@@ -286,9 +440,9 @@ http://127.0.0.1:18080
 - 断点续传和 HTTP Range
 - 数据库、消息队列和服务发现
 - 分布式存储、复制和一致性协议
-- Kubernetes 部署清单
+- 生产级多节点高可用存储、镜像仓库和 Ingress
 
-这些能力适合在 GoDrop 完成后，通过后续的云原生和多服务项目继续学习。
+GoDrop 的标准库核心、容器化、自动检查和本地 Kubernetes 教学部署已经完成。这些未包含的能力适合在后续独立的云原生和多服务项目中继续学习。
 
 ## 自动检查
 
