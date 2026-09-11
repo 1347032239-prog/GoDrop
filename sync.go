@@ -41,7 +41,7 @@ func employer(ctx context.Context, result ScanResult, ch chan syncJobs, outputDi
 		select {
 		case ch <- syncJobs{
 			Entry:      file,
-			OutputPath: filepath.Join(outputDir, file.Path),
+			OutputPath: filepath.Join(outputDir, filepath.FromSlash(file.Path)),
 		}:
 		case <-ctx.Done():
 			return
@@ -80,21 +80,6 @@ func worker(wg *sync.WaitGroup, ctx context.Context, downloadURL string, chJobs 
 
 }
 
-func checkIfPathValid(path string) error {
-
-	if path == "" {
-		return fmt.Errorf("存在空字符串索引")
-	} else if path == "." {
-		return fmt.Errorf("存在.索引")
-	} else if !filepath.IsLocal(path) {
-		return fmt.Errorf("IsLocal未通过")
-	} else if filepath.Clean(path) != path {
-		return fmt.Errorf("filepath.Clean() != path")
-	}
-	return nil
-
-}
-
 func syncFiles(fctx context.Context, result ScanResult, downloadURL, outputDir string, workers int) (syncSummary, error) {
 
 	ctx, cancel := context.WithCancel(fctx)
@@ -108,7 +93,7 @@ func syncFiles(fctx context.Context, result ScanResult, downloadURL, outputDir s
 
 	for _, file := range result.Files {
 
-		err := checkIfPathValid(file.Path)
+		err := validateIndexPath(file.Path)
 
 		if err != nil {
 
@@ -116,7 +101,7 @@ func syncFiles(fctx context.Context, result ScanResult, downloadURL, outputDir s
 
 		}
 
-		destinationPath := filepath.Join(outputDir, file.Path)
+		destinationPath := filepath.Join(outputDir, filepath.FromSlash(file.Path))
 		parentDir := filepath.Dir(destinationPath)
 
 		if err = os.MkdirAll(parentDir, 0755); err != nil {
