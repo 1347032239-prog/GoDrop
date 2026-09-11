@@ -108,10 +108,12 @@ func runShow(args []string) {
 
 func runServe(args []string) {
 
+	defaults := defaultServeConfig()
+
 	serveCmd := flag.NewFlagSet("serve", flag.ContinueOnError)
-	indexPtr := serveCmd.String("index", "", "要提供的json路径")
-	addrPtr := serveCmd.String("addr", "127.0.0.1:8080", "服务端socket")
-	dirPtr := serveCmd.String("dir", "", "可下载文件路径 ")
+	indexPtr := serveCmd.String("index", defaults.IndexPath, "要提供的json路径")
+	addrPtr := serveCmd.String("addr", defaults.Addr, "服务端socket")
+	dirPtr := serveCmd.String("dir", defaults.SharedDir, "可下载文件路径 ")
 
 	err := serveCmd.Parse(args)
 
