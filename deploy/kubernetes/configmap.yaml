@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: godrop-config
+  labels:
+    app: godrop
+data:
+  GODROP_INDEX: /srv/godrop/index.json
+  GODROP_DIR: /srv/godrop/share
+  GODROP_ADDR: "0.0.0.0:8080"
