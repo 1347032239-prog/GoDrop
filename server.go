@@ -7,7 +7,38 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 )
+
+func newProbeHandler(next http.Handler, ready *atomic.Bool) http.Handler {
+
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+
+		io.WriteString(w, "ok\n")
+
+	})
+
+	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
+
+		if ready.Load() {
+
+			io.WriteString(w, "ready\n")
+
+			return
+
+		}
+
+		http.Error(w, "not ready", http.StatusServiceUnavailable)
+
+	})
+
+	mux.Handle("/", next)
+
+	return mux
+
+}
 
 func newHTTPHandler(result ScanResult, root *os.Root) http.Handler {
 
