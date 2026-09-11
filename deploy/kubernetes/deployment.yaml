@@ -18,13 +18,9 @@ spec:
         - name: godrop
           image: godrop:local
           imagePullPolicy: IfNotPresent
-          env:
-            - name: GODROP_INDEX
-              value: /srv/godrop/index.json
-            - name: GODROP_DIR
-              value: /srv/godrop/share
-            - name: GODROP_ADDR
-              value: 0.0.0.0:8080
+          envFrom:
+            - configMapRef:
+                name: godrop-config
           ports:
             - name: http
               containerPort: 8080
