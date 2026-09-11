@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: godrop
+  labels:
+    app: godrop
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: godrop
+  template:
+    metadata:
+      labels:
+        app: godrop
+    spec:
+      containers:
+        - name: godrop
+          image: godrop:local
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: GODROP_INDEX
+              value: /srv/godrop/index.json
+            - name: GODROP_DIR
+              value: /srv/godrop/share
+            - name: GODROP_ADDR
+              value: 0.0.0.0:8080
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          volumeMounts:
+            - name: demo
+              mountPath: /srv/godrop
+              readOnly: true
+      volumes:
+        - name: demo
+          hostPath:
+            path: /opt/godrop
+            type: Directory
