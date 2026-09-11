@@ -1,0 +1,7 @@
+.git
+.gitignore
+godrop
+*.exe
+*.out
+coverage*
+tmp/
