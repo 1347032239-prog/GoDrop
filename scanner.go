@@ -85,7 +85,7 @@ func scanDirectory(root string) (ScanResult, error) {
 			}
 
 			fileEntryTemp := FileEntry{
-				Path:   relPath,
+				Path:   filepath.ToSlash(relPath),
 				Size:   sz,
 				SHA256: tmp,
 			}

@@ -66,9 +66,9 @@ func newHTTPHandler(result ScanResult, root *os.Root) http.Handler {
 
 	mux.HandleFunc("GET /download", func(w http.ResponseWriter, r *http.Request) {
 
-		path := r.URL.Query().Get("path")
+		indexPath := r.URL.Query().Get("path")
 
-		if path == "" || path == "." {
+		if err := validateIndexPath(indexPath); err != nil {
 
 			http.Error(w, "路径非法", http.StatusBadRequest)
 
@@ -76,17 +76,7 @@ func newHTTPHandler(result ScanResult, root *os.Root) http.Handler {
 
 		}
 
-		if !filepath.IsLocal(path) {
-
-			http.Error(w, "可能逃逸", http.StatusNotFound)
-
-			return
-
-		}
-
-		path = filepath.Clean(path)
-
-		_, existed := allowedPaths[path]
+		entry, existed := allowedPaths[indexPath]
 
 		if !existed {
 
@@ -96,7 +86,7 @@ func newHTTPHandler(result ScanResult, root *os.Root) http.Handler {
 
 		}
 
-		file, err := root.Open(path)
+		file, err := root.Open(filepath.FromSlash(indexPath))
 
 		if err != nil {
 
@@ -118,13 +108,13 @@ func newHTTPHandler(result ScanResult, root *os.Root) http.Handler {
 
 		}
 
-		w.Header().Set("X-GoDrop-SHA256", allowedPaths[path].SHA256)
+		w.Header().Set("X-GoDrop-SHA256", entry.SHA256)
 		w.Header().Set("Content-Type", "application/pdf")
 
 		_, err = io.Copy(w, file)
 		if err != nil {
 
-			slog.Error("文件流式传输失败", "path", path, "error", err)
+			slog.Error("文件流式传输失败", "path", indexPath, "error", err)
 
 		}
 
